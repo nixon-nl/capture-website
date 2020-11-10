@@ -179,187 +179,188 @@ const captureWebsite = async (input, options) => {
 	const browser = options._browser || await puppeteer.launch(launchOptions);
 	const page = await browser.newPage();
 
-	await page.setJavaScriptEnabled(options.isJavaScriptEnabled);
+	try {
+		await page.setJavaScriptEnabled(options.isJavaScriptEnabled);
 
-	if (options.debug) {
-		page.on('console', message => {
-			let {url, lineNumber, columnNumber} = message.location();
-			lineNumber = lineNumber ? `:${lineNumber}` : '';
-			columnNumber = columnNumber ? `:${columnNumber}` : '';
-			const location = url ? ` (${url}${lineNumber}${columnNumber})` : '';
-			console.log(`\nPage log:${location}\n${message.text()}\n`);
-		});
+		if (options.debug) {
+			page.on('console', message => {
+				let {url, lineNumber, columnNumber} = message.location();
+				lineNumber = lineNumber ? `:${lineNumber}` : '';
+				columnNumber = columnNumber ? `:${columnNumber}` : '';
+				const location = url ? ` (${url}${lineNumber}${columnNumber})` : '';
+				console.log(`\nPage log:${location}\n${message.text()}\n`);
+			});
 
-		page.on('pageerror', error => {
-			console.log('\nPage error:', error, '\n');
-		});
+			page.on('pageerror', error => {
+				console.log('\nPage error:', error, '\n');
+			});
 
-		// TODO: Add more events from https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#event-requestfailed
-	}
-
-	if (options.authentication) {
-		await page.authenticate(options.authentication);
-	}
-
-	if (options.cookies) {
-		const cookies = options.cookies.map(cookie => parseCookie(isHTMLContent ? 'about:blank' : input, cookie));
-		await page.setCookie(...cookies);
-	}
-
-	if (options.headers) {
-		await page.setExtraHTTPHeaders(options.headers);
-	}
-
-	if (options.userAgent) {
-		await page.setUserAgent(options.userAgent);
-	}
-
-	await page.setViewport(viewportOptions);
-
-	if (options.emulateDevice) {
-		if (!(options.emulateDevice in puppeteer.devices)) {
-			throw new Error(`The device name \`${options.emulateDevice}\` is not supported`);
+			// TODO: Add more events from https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#event-requestfailed
 		}
 
-		await page.emulate(puppeteer.devices[options.emulateDevice]);
-	}
-
-	await page.emulateMediaFeatures([{
-		name: 'prefers-color-scheme',
-		value: options.darkMode ? 'dark' : 'light'
-	}]);
-
-	await page[isHTMLContent ? 'setContent' : 'goto'](input, {
-		timeout: timeoutInSeconds,
-		waitUntil: 'networkidle2'
-	});
-
-	if (options.disableAnimations) {
-		await page.evaluate(disableAnimations, options.disableAnimations);
-	}
-
-	if (options.hideElements) {
-		await page.addStyleTag({
-			content: `${options.hideElements.join(', ')} { visibility: hidden !important; }`
-		});
-	}
-
-	if (options.removeElements) {
-		await page.addStyleTag({
-			content: `${options.removeElements.join(', ')} { display: none !important; }`
-		});
-	}
-
-	if (options.clickElement) {
-		await page.click(options.clickElement);
-	}
-
-	const getInjectKey = (ext, value) => isUrl(value) ? 'url' : (value.endsWith(`.${ext}`) ? 'path' : 'content');
-
-	if (!options.isJavaScriptEnabled) {
-		// Enable JavaScript again for `modules` and `scripts`.
-		await page.setJavaScriptEnabled(true);
-	}
-
-	if (options.modules) {
-		await Promise.all(options.modules.map(module_ => {
-			return page.addScriptTag({
-				[getInjectKey('js', module_)]: module_,
-				type: 'module'
-			});
-		}));
-	}
-
-	if (options.scripts) {
-		await Promise.all(options.scripts.map(script => {
-			return page.addScriptTag({
-				[getInjectKey('js', script)]: script
-			});
-		}));
-	}
-
-	if (options.styles) {
-		await Promise.all(options.styles.map(style => {
-			return page.addStyleTag({
-				[getInjectKey('css', style)]: style
-			});
-		}));
-	}
-
-	if (options.waitForElement) {
-		await page.waitForSelector(options.waitForElement, {
-			visible: true,
-			timeout: timeoutInSeconds
-		});
-	}
-
-	if (options.element) {
-		await page.waitForSelector(options.element, {
-			visible: true,
-			timeout: timeoutInSeconds
-		});
-		screenshotOptions.clip = await page.$eval(options.element, getBoundingClientRect);
-		screenshotOptions.fullPage = false;
-	}
-
-	if (options.delay) {
-		await page.waitForTimeout(options.delay * 1000);
-	}
-
-	if (options.scrollToElement) {
-		if (typeof options.scrollToElement === 'object') {
-			await page.$eval(options.scrollToElement.element, scrollToElement, options.scrollToElement);
-		} else {
-			await page.$eval(options.scrollToElement, scrollToElement);
+		if (options.authentication) {
+			await page.authenticate(options.authentication);
 		}
-	}
 
-	if (options.beforeScreenshot) {
-		await options.beforeScreenshot(page, browser);
-	}
+		if (options.cookies) {
+			const cookies = options.cookies.map(cookie => parseCookie(isHTMLContent ? 'about:blank' : input, cookie));
+			await page.setCookie(...cookies);
+		}
 
-	if (screenshotOptions.fullPage) {
-		// Get the height of the rendered page
-		const bodyHandle = await page.$('body');
-		const bodyBoundingHeight = await bodyHandle.boundingBox();
-		await bodyHandle.dispose();
+		if (options.headers) {
+			await page.setExtraHTTPHeaders(options.headers);
+		}
 
-		// Scroll one viewport at a time, pausing to let content load
-		const viewportHeight = viewportOptions.height;
-		let viewportIncrement = 0;
-		while (viewportIncrement + viewportHeight < bodyBoundingHeight) {
-			const navigationPromise = page.waitForNavigation({waitUntil: 'networkidle0'});
-			/* eslint-disable no-await-in-loop */
-			await page.evaluate(_viewportHeight => {
+		if (options.userAgent) {
+			await page.setUserAgent(options.userAgent);
+		}
+
+		await page.setViewport(viewportOptions);
+
+		if (options.emulateDevice) {
+			if (!(options.emulateDevice in puppeteer.devices)) {
+				throw new Error(`The device name \`${options.emulateDevice}\` is not supported`);
+			}
+
+			await page.emulate(puppeteer.devices[options.emulateDevice]);
+		}
+
+		await page.emulateMediaFeatures([{
+			name: 'prefers-color-scheme',
+			value: options.darkMode ? 'dark' : 'light'
+		}]);
+
+		await page[isHTMLContent ? 'setContent' : 'goto'](input, {
+			timeout: timeoutInSeconds,
+			waitUntil: 'networkidle2'
+		});
+
+		if (options.disableAnimations) {
+			await page.evaluate(disableAnimations, options.disableAnimations);
+		}
+
+		if (options.hideElements) {
+			await page.addStyleTag({
+				content: `${options.hideElements.join(', ')} { visibility: hidden !important; }`
+			});
+		}
+
+		if (options.removeElements) {
+			await page.addStyleTag({
+				content: `${options.removeElements.join(', ')} { display: none !important; }`
+			});
+		}
+
+		if (options.clickElement) {
+			await page.click(options.clickElement);
+		}
+
+		const getInjectKey = (ext, value) => isUrl(value) ? 'url' : (value.endsWith(`.${ext}`) ? 'path' : 'content');
+
+		if (!options.isJavaScriptEnabled) {
+			// Enable JavaScript again for `modules` and `scripts`.
+			await page.setJavaScriptEnabled(true);
+		}
+
+		if (options.modules) {
+			await Promise.all(options.modules.map(module_ => {
+				return page.addScriptTag({
+					[getInjectKey('js', module_)]: module_,
+					type: 'module'
+				});
+			}));
+		}
+
+		if (options.scripts) {
+			await Promise.all(options.scripts.map(script => {
+				return page.addScriptTag({
+					[getInjectKey('js', script)]: script
+				});
+			}));
+		}
+
+		if (options.styles) {
+			await Promise.all(options.styles.map(style => {
+				return page.addStyleTag({
+					[getInjectKey('css', style)]: style
+				});
+			}));
+		}
+
+		if (options.waitForElement) {
+			await page.waitForSelector(options.waitForElement, {
+				visible: true,
+				timeout: timeoutInSeconds
+			});
+		}
+
+		if (options.element) {
+			await page.waitForSelector(options.element, {
+				visible: true,
+				timeout: timeoutInSeconds
+			});
+			screenshotOptions.clip = await page.$eval(options.element, getBoundingClientRect);
+			screenshotOptions.fullPage = false;
+		}
+
+		if (options.delay) {
+			await page.waitForTimeout(options.delay * 1000);
+		}
+
+		if (options.scrollToElement) {
+			if (typeof options.scrollToElement === 'object') {
+				await page.$eval(options.scrollToElement.element, scrollToElement, options.scrollToElement);
+			} else {
+				await page.$eval(options.scrollToElement, scrollToElement);
+			}
+		}
+
+		if (options.beforeScreenshot) {
+			await options.beforeScreenshot(page, browser);
+		}
+
+		if (screenshotOptions.fullPage) {
+			// Get the height of the rendered page
+			const bodyHandle = await page.$('body');
+			const bodyBoundingHeight = await bodyHandle.boundingBox();
+			await bodyHandle.dispose();
+
+			// Scroll one viewport at a time, pausing to let content load
+			const viewportHeight = viewportOptions.height;
+			let viewportIncrement = 0;
+			while (viewportIncrement + viewportHeight < bodyBoundingHeight) {
+				const navigationPromise = page.waitForNavigation({waitUntil: 'networkidle0'});
+				/* eslint-disable no-await-in-loop */
+				await page.evaluate(_viewportHeight => {
+					/* eslint-disable no-undef */
+					window.scrollBy(0, _viewportHeight);
+					/* eslint-enable no-undef */
+				}, viewportHeight);
+				await navigationPromise;
+				/* eslint-enable no-await-in-loop */
+				viewportIncrement += viewportHeight;
+			}
+
+			// Scroll back to top
+			await page.evaluate(_ => {
 				/* eslint-disable no-undef */
-				window.scrollBy(0, _viewportHeight);
+				window.scrollTo(0, 0);
 				/* eslint-enable no-undef */
-			}, viewportHeight);
-			await navigationPromise;
-			/* eslint-enable no-await-in-loop */
-			viewportIncrement += viewportHeight;
+			});
+
+			// Some extra delay to let images load
+			await page.waitForFunction(imagesHaveLoaded, {timeout: timeoutInSeconds});
 		}
 
-		// Scroll back to top
-		await page.evaluate(_ => {
-			/* eslint-disable no-undef */
-			window.scrollTo(0, 0);
-			/* eslint-enable no-undef */
-		});
+		const buffer = await page.screenshot(screenshotOptions);
 
-		// Some extra delay to let images load
-		await page.waitForFunction(imagesHaveLoaded, {timeout: timeoutInSeconds});
+		return buffer;
+	} finally {
+		await page.close();
+		if (!options._keepAlive) {
+			await browser.close();
+		}
 	}
-
-	const buffer = await page.screenshot(screenshotOptions);
-
-	await page.close();
-
-	if (!options._keepAlive) {
-		await browser.close();
-	}
-
-	return buffer;
 };
 
 module.exports.file = async (url, filePath, options = {}) => {
